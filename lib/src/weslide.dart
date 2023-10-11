@@ -231,20 +231,29 @@ class WeSlide extends StatefulWidget {
 class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
   // Main Animation Controller
   late AnimationController _ac;
+  late AnimationController _pc;
 
   // Panel Border Radius Effect[Tween]
   late Animation<double> _panelBorderRadius;
+
   // Body Border Radius Effect [Tween]
   late Animation<double> _bodyBorderRadius;
+
   // Scale Animation Effect [Tween]
   late Animation<double> _scaleAnimation;
+
   // PanelHeader animation Effect [Tween]
   late Animation<double> _fadeAnimation;
+
+  // Body Fade Animation Effect [Tween]
+  late Animation<double> _panelFadeAnimation;
+
   // Footer Animation Controller
   late AnimationController _acFooter;
 
   // Get current controller
   WeSlideController get _effectiveController => widget.controller!;
+
   WeSlideController get _effectiveFooterController => widget.footerController!;
 
   // Check if panel is visible
@@ -269,6 +278,10 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
         vsync: this,
         duration: widget.animateDuration,
         value: _effectiveFooterController.isOpened ? 1 : 0); // show by default
+    _pc = AnimationController(
+        vsync: this,
+        duration: widget.animateDuration,
+        value: _effectiveController.isOpened ? 1 : 0);
     // panel Border radius animation
 
     _panelBorderRadius = Tween<double>(
@@ -288,6 +301,10 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
         .animate(_ac);
     // Fade Animation sequence
     _fadeAnimation = TweenSequence(widget.fadeSequence).animate(_ac);
+    _panelFadeAnimation = TweenSequence([
+      TweenSequenceItem<double>(weight: 0.5, tween: Tween(begin: 0, end: 1)),
+      TweenSequenceItem<double>(weight: 0.5, tween: Tween(begin: 1, end: 1)),
+    ]).animate(_pc);
 
     // Super Init State
     super.initState();
@@ -305,6 +322,7 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
   void _animatedPanel() {
     if (_effectiveController.value != _isPanelVisible) {
       _ac.fling(velocity: _isPanelVisible ? -2.0 : 2.0);
+      _pc.fling(velocity: _isPanelVisible ? 2.0 : -2.0);
     }
   }
 
@@ -320,6 +338,7 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
   void dispose() {
     ///Animation Controller
     _ac.dispose();
+    _pc.dispose();
     _acFooter.dispose();
 
     /// ValueNotifier
@@ -335,6 +354,7 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
       return;
     }
     _ac.value -= 1.5 * fractionDragged;
+    _pc.value -= 1.5 * fractionDragged;
   }
 
   /// Gesture Vertical End [GestureDetector]
@@ -342,23 +362,31 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
     var velocity = endDetails.primaryVelocity!;
 
     if (velocity > 0.0) {
+      // 向下滑动，隐藏面板
       _ac.reverse().then((x) {
         _effectiveController.value = false;
       });
+      _pc.reverse();
     } else if (velocity < 0.0) {
+      // 向上滑动，显示面板
       if (widget.isUpSlide) {
         _ac.forward().then((x) {
           _effectiveController.value = true;
         });
+        _pc.forward();
       }
     } else if (_ac.value >= 0.5 && endDetails.primaryVelocity == 0.0) {
+      // 拖拽到一半以上并且没有速度，则显示面板
       _ac.forward().then((x) {
         _effectiveController.value = true;
       });
+      _pc.forward();
     } else {
+      // 其他情况，隐藏面板
       _ac.reverse().then((x) {
         _effectiveController.value = false;
       });
+      _pc.reverse();
     }
   }
 
@@ -473,7 +501,9 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
                       topRight: Radius.circular(_bodyBorderRadius.value),
                     ),
                     child: SizedBox(
-                      height: _height - _getBodyHeight() - _getFooterOffset(),
+                      // height: _height - _getBodyHeight() - _getFooterOffset(),
+                      // 全屏即可
+                      height: _height,
                       width: widget.bodyWidth ?? _width,
                       child: child,
                     ),
@@ -559,7 +589,8 @@ class _WeSlideState extends State<WeSlide> with TickerProviderStateMixin {
                 /** Panel widget **/
                 SizedBox(
                   height: _height - _getPanelSize(),
-                  child: widget.panel!,
+                  child: FadeTransition(
+                      opacity: _panelFadeAnimation, child: widget.panel!),
                 ),
                 /** Panel Header widget **/
                 widget.panelHeader != null && widget.hidePanelHeader
